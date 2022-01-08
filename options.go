@@ -19,8 +19,8 @@ var (
 // OptionsStruct
 //
 type Options struct {
-	useV6         bool          // Use only IPv6
-	useV4         bool          // Use only IPv4
+	ipv6only      bool          // Use only IPv6
+	ipv4only      bool          // Use only IPv4
 	timeout       time.Duration // connection timeout in seconds
 	retries       int           // number of retries
 	printstatus   bool          // Print status and TLS info
@@ -42,8 +42,8 @@ type Options struct {
 
 // Options
 var options = Options{
-	useV6:         false,
-	useV4:         false,
+	ipv6only:      false,
+	ipv4only:      false,
 	timeout:       defaultTimeout,
 	retries:       defaultRetries,
 	printstatus:   true,
@@ -69,8 +69,8 @@ func doFlags() string {
 	var authbasic string
 
 	help := flag.Bool("h", false, "print help string")
-	flag.BoolVar(&options.useV6, "6", false, "use IPv6 only")
-	flag.BoolVar(&options.useV4, "4", false, "use IPv4 only")
+	flag.BoolVar(&options.ipv6only, "6", false, "use IPv6 only")
+	flag.BoolVar(&options.ipv4only, "4", false, "use IPv4 only")
 	flag.DurationVar(&options.timeout, "t", defaultTimeout, "query timeout")
 	flag.BoolVar(&options.printstatus, "status", true, "print status and TLS info")
 	flag.BoolVar(&options.printheader, "header", true, "print header")
@@ -92,8 +92,8 @@ Usage: %s [Options] <url>
 
     Options:
 	-h                Print this help string
-	-4                Connect to IPv4 addresses only
-	-6                Connect to IPv6 addresses only
+	-4                Connect to IPv4 addresses only (implies 'queryall')
+	-6                Connect to IPv6 addresses only (implies 'queryall')
 	-t Ns             Query timeout value in seconds (default %v)
 	-r N              Maximum # of retries (default %d)
 	-status           Print status and TLS info (=false to negate)
@@ -120,20 +120,24 @@ Usage: %s [Options] <url>
 		options.password = tmp[1]
 	}
 
+	if options.ipv6only && options.ipv4only {
+		fmt.Printf("ERROR: Cannot specify both -4 and -6. Choose one.\n")
+		flag.Usage()
+		os.Exit(4)
+	}
+
+	if options.ipv6only || options.ipv4only {
+		options.queryall = true
+	}
+
 	if options.queryall {
 		options.noredirect = true
 	}
 
 	if *help || (flag.NArg() != 1) {
 		if flag.NArg() != 0 {
-			fmt.Fprintf(os.Stderr, "Error: incorrect number of arguments\n")
+			fmt.Fprintf(os.Stderr, "ERROR: incorrect number of arguments\n")
 		}
-		flag.Usage()
-		os.Exit(4)
-	}
-
-	if options.useV4 && options.useV6 {
-		fmt.Fprintf(os.Stderr, "Error: cannot specify both -4 and -6.\n")
 		flag.Usage()
 		os.Exit(4)
 	}

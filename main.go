@@ -38,9 +38,8 @@ type Result struct {
 func printStatus(response *http.Response) {
 
 	fmt.Println("## HTTP Status:")
-	fmt.Printf("   HTTP Status: %d\n", response.StatusCode)
-	fmt.Printf("   HTTP ProtoMajor: %d\n", response.ProtoMajor)
-	fmt.Printf("   HTTP ProtoMinor: %d\n", response.ProtoMinor)
+	fmt.Printf("   HTTP Status: %d %s\n", response.StatusCode, http.StatusText(response.StatusCode))
+	fmt.Printf("   HTTP Protocol: %d %d %s\n", response.ProtoMajor, response.ProtoMinor, response.Proto)
 	fmt.Printf("   HTTP ContentLength: %d\n", response.ContentLength)
 	fmt.Printf("   HTTP Close: %v\n", response.Close)
 	fmt.Printf("   HTTP Uncompressed: %v\n", response.Uncompressed)
@@ -169,6 +168,33 @@ func querySingle(urlstring, address string) {
 	}
 }
 
+func getIpList(hostname string) []net.IP {
+
+	iplist, err := net.LookupIP(hostname)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if !(options.ipv6only || options.ipv4only) {
+		return iplist
+	}
+
+	var filteredlist []net.IP
+
+	for _, ipaddress := range iplist {
+		isipv4 := (ipaddress.To4() != nil)
+		if options.ipv6only && isipv4 {
+			continue
+		}
+		if options.ipv4only && !isipv4 {
+			continue
+		}
+		filteredlist = append(filteredlist, ipaddress)
+	}
+
+	return filteredlist
+}
+
 func main() {
 
 	urlstring := doFlags()
@@ -178,10 +204,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	iplist, err := net.LookupIP(hostname)
-	if err != nil {
-		log.Fatal(err)
-	}
+	iplist := getIpList(hostname)
 
 	fmt.Printf("URL: %s\nHostname: %s\nPort: %s\n", urlstring, hostname, port)
 	fmt.Println("Addresses:")
