@@ -15,6 +15,17 @@ var (
 	defaultAgent   = "gohttp"
 )
 
+type arrayFlag []string
+
+func (i *arrayFlag) String() string {
+	return "my string representation"
+}
+
+func (i *arrayFlag) Set(value string) error {
+	*i = append(*i, value)
+	return nil
+}
+
 //
 // OptionsStruct
 //
@@ -23,11 +34,11 @@ type Options struct {
 	ipv4only      bool          // Use only IPv4
 	timeout       time.Duration // connection timeout in seconds
 	retries       int           // number of retries
-	printstatus   bool          // Print status and TLS info
-	printheader   bool          // Print HTTP headers
 	printbody     bool          // Print body
+	bodyonly      bool          // Print body only
 	queryall      bool          // Query all server addresses
 	sni           string        // Server Name Indication option
+	headers       arrayFlag     // Custom request headers
 	cacert        string        // File containing PEM format CA certs
 	clientcert    string        // File containing PEM format client cert
 	clientkey     string        // File containing PEM format client key
@@ -46,11 +57,11 @@ var options = Options{
 	ipv4only:      false,
 	timeout:       defaultTimeout,
 	retries:       defaultRetries,
-	printstatus:   true,
-	printheader:   true,
 	printbody:     false,
+	bodyonly:      false,
 	queryall:      false,
 	sni:           "",
+	headers:       nil,
 	cacert:        "",
 	clientcert:    "",
 	clientkey:     "",
@@ -72,12 +83,12 @@ func doFlags() string {
 	flag.BoolVar(&options.ipv6only, "6", false, "use IPv6 only")
 	flag.BoolVar(&options.ipv4only, "4", false, "use IPv4 only")
 	flag.DurationVar(&options.timeout, "t", defaultTimeout, "query timeout")
-	flag.BoolVar(&options.printstatus, "status", true, "print status and TLS info")
-	flag.BoolVar(&options.printheader, "header", true, "print header")
-	flag.BoolVar(&options.printbody, "body", false, "print body")
+	flag.BoolVar(&options.printbody, "printbody", false, "print body")
+	flag.BoolVar(&options.bodyonly, "bodyonly", false, "print body")
 	flag.BoolVar(&options.queryall, "queryall", false, "query all server addresses")
 	flag.BoolVar(&options.noredirect, "noredirect", false, "don't follow redirects")
 	flag.StringVar(&options.sni, "sni", "", "Server Name Indication")
+	flag.Var(&options.headers, "header", "Custom request header: key: value")
 	flag.StringVar(&options.cacert, "cacert", "", "CA cert file")
 	flag.StringVar(&options.clientcert, "clientcert", "", "Client cert file")
 	flag.StringVar(&options.clientkey, "clientkey", "", "Client key file")
@@ -96,12 +107,12 @@ Usage: %s [Options] <url>
 	-6                Connect to IPv6 addresses only (implies 'queryall')
 	-t Ns             Query timeout value in seconds (default %v)
 	-r N              Maximum # of retries (default %d)
-	-status           Print status and TLS info (=false to negate)
-	-header           Print HTTP headers (=false to negate)
-	-body             Print body
+	-printbody        Print body
+	-bodyonly         Only print body, no status, headers, etc
 	-queryall         Query all server addresses (implies 'noredirect')
 	-noredirect       Don't follow redirects
 	-sni name         Server Name Indication option
+	-header key:val   Send custom request header
 	-cacert file      PEM format CA certificates file
 	-clientcert file  PEM format Client certificate file
 	-clientkey file   PEM format Client key file

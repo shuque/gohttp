@@ -47,26 +47,20 @@ func printStatus(response *http.Response) {
 
 func printHeaders(header http.Header) {
 
-	fmt.Printf("## HTTP Headers:\n")
+	fmt.Println("## HTTP Headers:")
 	for headerkey, headervalue := range header {
 		fmt.Printf("   %s: %s\n", headerkey, strings.Join(headervalue, ","))
 	}
+	fmt.Println("## End of HTTP Headers.")
 }
 
-func readResponse(client http.Client, url string) (result *Result) {
+func readResponse(client http.Client, request *http.Request) (result *Result) {
 
 	var response *http.Response
 	var body []byte
 	var err error
 
 	result = new(Result)
-
-	request, err := http.NewRequest(http.MethodGet, url, nil)
-	if err != nil {
-		result.err = err
-		return
-	}
-	request.Header.Add("User-Agent", options.useragent)
 
 	if options.username != "" {
 		request.SetBasicAuth(options.username, options.password)
@@ -88,6 +82,22 @@ func readResponse(client http.Client, url string) (result *Result) {
 	result.body = body
 	result.err = err
 	return
+}
+
+func getRequest(url string) *http.Request {
+
+	request, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+	request.Header.Add("User-Agent", options.useragent)
+	for _, header := range options.headers {
+		tmp := strings.SplitN(header, ":", 2)
+		key := tmp[0]
+		val := tmp[1]
+		request.Header.Add(key, val)
+	}
+	return request
 }
 
 func getClient(address string) http.Client {
@@ -143,27 +153,23 @@ func url2addressport(urlstring string) (hostname, port string, err error) {
 	return hostname, port, nil
 }
 
-func querySingle(urlstring, address string) {
+func querySingle(request *http.Request, address string) {
 
 	client := getClient(address)
-	result := readResponse(client, urlstring)
+	result := readResponse(client, request)
 	if result.err != nil {
 		fmt.Println(result.err)
 		return
 	}
 
-	if options.printstatus {
+	if !options.bodyonly {
 		fmt.Printf("## ResponseTime: %v\n", result.responsetime)
 		printTLSinfo(result.response)
 		printStatus(result.response)
-	}
-
-	if options.printheader {
 		printHeaders(result.response.Header)
 	}
 
-	if options.printbody {
-		fmt.Println("## HTTP BODY:")
+	if options.printbody || options.bodyonly {
 		fmt.Printf("%s\n", result.body)
 	}
 }
@@ -195,7 +201,18 @@ func getIpList(hostname string) []net.IP {
 	return filteredlist
 }
 
+func prologue(urlstring, hostname, port string, iplist []net.IP) {
+
+	fmt.Printf("URL: %s\nHostname: %s\nPort: %s\n", urlstring, hostname, port)
+	fmt.Println("Addresses:")
+	for _, ipaddress := range iplist {
+		fmt.Printf("\t%s\n", ipaddress)
+	}
+}
+
 func main() {
+
+	var request *http.Request
 
 	urlstring := doFlags()
 
@@ -203,22 +220,21 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-
 	iplist := getIpList(hostname)
 
-	fmt.Printf("URL: %s\nHostname: %s\nPort: %s\n", urlstring, hostname, port)
-	fmt.Println("Addresses:")
-	for _, ipaddress := range iplist {
-		fmt.Printf("\t%s\n", ipaddress)
+	if !options.bodyonly {
+		prologue(urlstring, hostname, port, iplist)
 	}
+
+	request = getRequest(urlstring)
 
 	if options.queryall {
 		for _, ipaddress := range iplist {
 			fmt.Printf("\nCONNECT: %s %s ..\n", ipaddress, port)
-			querySingle(urlstring, addressString(ipaddress, port))
+			querySingle(request, addressString(ipaddress, port))
 		}
 	} else {
 		fmt.Println()
-		querySingle(urlstring, "")
+		querySingle(request, "")
 	}
 }
